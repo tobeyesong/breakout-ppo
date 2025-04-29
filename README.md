@@ -1,124 +1,133 @@
 # Breakout PPO Reinforcement Learning
 
-A PyTorch implementation of Proximal Policy Optimization (PPO) for playing Atari Breakout.
+This repository contains a set of Python scripts for training and evaluating a reinforcement learning agent to play the Atari game Breakout using Proximal Policy Optimization (PPO).
 
 ## Overview
 
-This project implements a Reinforcement Learning agent using the PPO algorithm to play Atari Breakout. The implementation uses Stable Baselines3, Gymnasium, and the Arcade Learning Environment (ALE).
+The project consists of three main components:
 
-## Features
+1. **Training script**: Train a PPO agent to play Breakout
+2. **Visual evaluation**: Watch the trained agent play in real-time 
+3. **Headless evaluation**: Assess agent performance without visual rendering
 
-- Uses PPO algorithm with CNN policy for Atari games
-- Supports parallel environments for faster training
-- Includes progress tracking during training
-- GPU acceleration when available
-- Resumable training from saved models
+## Requirements
 
-## Dependencies
-
-- Python 3.7+
+- Python 3.11+
 - PyTorch
-- stable-baselines3
-- ale-py
-- gymnasium
-- gymnasium[atari]
+- Stable Baselines 3
+- Gymnasium
+- ALE-Py (Arcade Learning Environment)
+- NumPy
+- tqdm
 
 ## Installation
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/yourusername/ppo-breakout.git
+  ```bash
+   git clone https://github.com/tobeyesong/ppo-breakout.git
    cd ppo-breakout
    ```
 
-2. Create and activate a virtual environment (optional but recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+```bash
+# Create and activate a virtual environment
+python -m venv 3.11env
 
-3. Install the required packages:
-   ```bash
-   pip install torch gymnasium[atari] ale-py stable-baselines3
-   ```
+# Windows
+3.11env\Scripts\activate
+# macOS/Linux
+source 3.11env/bin/activate
 
-4. Install Atari ROMs for Gymnasium:
-   ```bash
-   ale-import-roms
-   ```
-   Note: You need to provide your own Atari ROM files due to copyright restrictions.
+# Install dependencies
+pip install torch stable-baselines3 gymnasium[atari] ale-py numpy tqdm
+
+# Install Atari ROMs
+python -m ale_py.import_roms
+```
 
 ## Usage
 
-### Training a new model
+### Training an Agent
 
-To train a new model with default settings:
+Train a new agent from scratch:
 
 ```bash
-python train.py
+python train_breakout.py --steps 1000000 --envs 8
 ```
 
-### Customizing training parameters
-
-You can customize various training parameters:
+Resume training from an existing model:
 
 ```bash
-python train.py --steps 5000000 --envs 16
+python train_breakout.py --model models/ppo_breakout_final.zip --steps 500000
 ```
 
 Parameters:
-- `--steps`: Number of timesteps to train (default: 2,000,000)
-- `--envs`: Number of parallel environments (default: 8)
+- `--model`: Path to a model to resume training (optional)
+- `--steps`: Number of timesteps to train (default: 10,000,000)
+- `--envs`: Number of parallel environments for training (default: 8)
 
-### Resuming training from a saved model
+Training progress is displayed with a progress bar and logged via TensorBoard.
 
-To resume training from a previously saved model:
+### Watching the Agent Play
+
+Visualize how your trained agent performs:
 
 ```bash
-python train.py --model models/your_saved_model.zip --steps 3000000
+python watch_breakout.py --model models/ppo_breakout_final.zip --episodes 5
 ```
 
-## Model Architecture
+Parameters:
+- `--model`: Path to the trained model (required)
+- `--episodes`: Number of episodes to play (default: 5)
 
-- **Policy**: CNN Policy optimized for Atari games
-- **Frame processing**: Frames are stacked (4 frames) and properly transposed for CNN input
-- **Hyperparameters**: 
-  - Learning rate: 2.5e-4
-  - Batch size: 256
-  - N steps: 128
-  - N epochs: 4
-  - Gamma: 0.99
-  - GAE Lambda: 0.95
-  - Clip range: 0.1
-  - Entropy coefficient: 0.01
+### Evaluating Performance (Headless)
 
-## Troubleshooting
+Run fast, headless evaluation to get performance metrics:
 
-### Common Issues
+```bash
+python headless_evaluation.py --model models/ppo_breakout_final.zip --episodes 100 --verbose
+```
 
-1. **CUDA out of memory errors**
-   - Reduce the number of parallel environments with `--envs`
-   - Try running on CPU if GPU memory is insufficient
+Parameters:
+- `--model`: Path to the trained model (required)
+- `--episodes`: Number of episodes to evaluate (default: 100)
+- `--verbose`: Print detailed per-episode information
 
-2. **ROM loading issues**
-   - Ensure ROMs are properly imported with `ale-import-roms`
-   - Check ROM paths and permissions
+## TensorBoard Visualization
 
-3. **Training instability**
-   - Try modifying hyperparameters like learning rate or batch size
-   - Ensure you have enough training steps (Atari games typically need millions of steps)
+View training metrics with TensorBoard:
 
-### Performance Tips
+```bash
+tensorboard --logdir=logs
+```
 
-- Use GPU acceleration when available
-- Increase parallel environments for faster training, but be mindful of memory usage
-- For best results, train for at least 10 million timesteps
+Then open http://localhost:6006 in your browser.
+
+## Project Structure
+
+- `train_breakout.py`: Main training script with PPO implementation
+- `watch_breakout.py`: Script to watch the agent play with visual rendering
+- `headless_evaluation.py`: Fast performance evaluation without rendering
+- `models/`: Directory where trained models are saved
+- `logs/`: Directory for TensorBoard logs
+
+## Model Hyperparameters
+
+The PPO agent uses the following hyperparameters:
+- Learning rate: 2.5e-4
+- Steps per environment before update: 128
+- Batch size: 256
+- Epochs per update: 4
+- Discount factor (gamma): 0.99
+- GAE lambda: 0.95
+- Clip range: 0.1
+- Entropy coefficient: 0.01
 
 ## License
 
-[MIT License](LICENSE)
+[MIT License]
 
 ## Acknowledgements
 
-- This implementation is based on the Stable Baselines3 framework
-- PPO algorithm as described in the paper "Proximal Policy Optimization Algorithms" by Schulman et al.
+This project uses the following libraries:
+- [Stable Baselines 3](https://github.com/DLR-RM/stable-baselines3)
+- [Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
+- [ALE-Py](https://github.com/Farama-Foundation/Arcade-Learning-Environment)
