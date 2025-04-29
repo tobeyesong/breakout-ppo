@@ -1,0 +1,9 @@
+torch
+torchvision
+ale-py
+gymnasium
+stable-baselines3
+tqdm
+matplotlib
+seaborn
+pandas

@@ -1,99 +1,94 @@
 #!/usr/bin/env python3
-"""
-train_breakout.py
-
-Train a PPO agent on Breakout using Gymnasium (ALE/Breakout-v5) and Stable-Baselines3.
-"""
-
 import os
+os.environ["NUMPY_EXPERIMENTAL_ARRAY_FUNCTION"] = "0"
+
+import torch
 import ale_py
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_atari_env
-from stable_baselines3.common.vec_env import VecFrameStack
-from stable_baselines3.common.callbacks import EvalCallback
-from gymnasium.wrappers import RecordVideo, AtariPreprocessing, FrameStackObservation
+from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage, SubprocVecEnv
+from stable_baselines3.common.callbacks import BaseCallback
+import argparse
 
-# Register ALE environments
+# Use GPU if available
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Using device: {device}")
+
+# Register ALE and make sure folders exist
 gym.register_envs(ale_py)
-
-# Directories
-LOG_DIR    = "logs"
-MODEL_DIR  = "models"
-VIDEO_DIR  = "videos"
-for d in (LOG_DIR, MODEL_DIR, VIDEO_DIR):
+for d in ("logs", "models"):
     os.makedirs(d, exist_ok=True)
 
-def train():
-    env_id = "ALE/Breakout-v5"
-    # create vectorized training env
-    train_env = make_atari_env(env_id, n_envs=8, seed=42)
+# Simple progress callback
+class ProgressCallback(BaseCallback):
+    def __init__(self, total_timesteps, log_freq=10000):
+        super().__init__()
+        self.total = total_timesteps
+        self.log_freq = log_freq
+        
+    def _on_step(self):
+        if self.n_calls % self.log_freq == 0:
+            print(f"Progress: {self.num_timesteps}/{self.total} steps")
+        return True
+
+def train(model_path=None, total_timesteps=10_000_000, n_envs=8):
+    """Train a new model or resume training"""
+    
+    # Create training environment
+    train_env = make_atari_env("BreakoutNoFrameskip-v4", n_envs=n_envs, seed=42, 
+                               vec_env_cls=SubprocVecEnv)
     train_env = VecFrameStack(train_env, n_stack=4)
-    # create vectorized evaluation env
-    eval_env = make_atari_env(env_id, n_envs=1, seed=43)
-    eval_env = VecFrameStack(eval_env, n_stack=4)
-
-    # evaluation callback
-    eval_callback = EvalCallback(
-        eval_env,
-        best_model_save_path=MODEL_DIR,
-        log_path=LOG_DIR,
-        eval_freq=10_000,
-        n_eval_episodes=5,
-        deterministic=True,
+    train_env = VecTransposeImage(train_env)
+    
+    if model_path and os.path.exists(model_path):
+        print(f"Loading model from {model_path}")
+        model = PPO.load(model_path, env=train_env)
+        resume = True
+    else:
+        print("Starting new training")
+        model = PPO(
+            "CnnPolicy",
+            train_env,
+            learning_rate=2.5e-4,
+            n_steps=128,
+            batch_size=256,
+            n_epochs=4,
+            gamma=0.99,
+            gae_lambda=0.95,
+            clip_range=0.1,
+            ent_coef=0.01,
+            verbose=1,
+            tensorboard_log="./logs/",
+            device=device,
+        )
+        resume = False
+    
+    # Setup callback
+    progress_callback = ProgressCallback(total_timesteps=total_timesteps)
+    
+    # Train model
+    print(f"\n{'Resuming' if resume else 'Starting'} training for {total_timesteps} steps")
+    model.learn(
+        total_timesteps=total_timesteps,
+        callback=progress_callback,
+        reset_num_timesteps=not resume
     )
-
-    # PPO model
-    model = PPO(
-        policy="CnnPolicy",
-        env=train_env,
-        verbose=1,
-        tensorboard_log=LOG_DIR,
-        learning_rate=2.5e-4,
-        n_steps=128,
-        batch_size=256,
-        n_epochs=4,
-        gamma=0.99,
-        gae_lambda=0.95,
-        clip_range=0.1,
-        ent_coef=0.01,
-        vf_coef=0.5,
-        max_grad_norm=0.5,
-    )
-
-    # quick smoke test
-    model.learn(total_timesteps=100_000, callback=eval_callback)
-    # full training
-    model.learn(total_timesteps=10_000_000, callback=eval_callback)
-
-    model.save(os.path.join(MODEL_DIR, "ppo_breakout_final"))
-    print("✅ Training complete; model saved to models/ppo_breakout_final.zip")
-
-def record_and_evaluate(model, n_episodes=5):
-    # build evaluation env with video recording
-    env = gym.make("ALE/Breakout-v5", render_mode="rgb_array")
-    env = AtariPreprocessing(env, frame_skip=4, screen_size=84, grayscale_obs=True)
-    env = FrameStackObservation(env, stack_size=4)
-    env = RecordVideo(env, video_folder=VIDEO_DIR, episode_trigger=lambda _: True)
-
-    total_reward = 0
-    for i in range(n_episodes):
-        obs, _ = env.reset()
-        done = False
-        episode_reward = 0
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, _ = env.step(action)
-            episode_reward += reward
-            done = terminated or truncated
-        print(f"Episode {i+1} reward: {episode_reward}")
-        total_reward += episode_reward
-
-    env.close()
-    print(f"🎬 Videos saved in '{VIDEO_DIR}'")
-    print(f"🔢 Mean reward over {n_episodes} episodes: {total_reward / n_episodes:.2f}")
+    
+    # Save final model
+    final_path = "models/ppo_breakout_final"
+    model.save(final_path)
+    print(f"Saved final model to {final_path}")
+    
+    return model
 
 if __name__ == "__main__":
-    train()
-    final_model = PPO.load(os.path.join(MODEL_DIR, "ppo_breakout_final"))
-    record_and_evaluate(final_model)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default=None, help="Path to model to resume from (optional)")
+    parser.add_argument("--steps", type=int, default=2_000_000, help="Number of steps to train")
+    parser.add_argument("--envs", type=int, default=8, help="Number of parallel environments")
+    
+    args = parser.parse_args()
+    
+    # Train or resume
+    train(args.model, total_timesteps=args.steps, n_envs=args.envs)

@@ -79,3 +79,35 @@ tensorboard*
 # Misc
 *.swp
 *~
+
+# Python env
+/venv/
+/3.11venv/
+/myenv/
+
+# checkpoints & logs
+/logs/
+/diagnostics/
+
+# large media
+/media/
+/models/*.zip
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual envs
+/venv/
+/myenv/
+/3.11venv/
+
+# Logs & diagnostics
+/logs/
+/diagnostics/
+
+# Large binaries
+/models/*.zip
+/videos/
+
+# OS junk
+.DS_Store
