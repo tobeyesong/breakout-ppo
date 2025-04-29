@@ -29,7 +29,7 @@ The project consists of three main components:
 
 ```bash
 # Create and activate a virtual environment
-python -m venv 3.11env
+python -3.11 -m venv 3.11env
 
 # Windows
 3.11env\Scripts\activate

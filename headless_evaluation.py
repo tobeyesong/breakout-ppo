@@ -6,6 +6,7 @@ import torch
 import ale_py
 import gymnasium as gym
 from stable_baselines3 import PPO
+from stable_baselines3.common.atari_wrappers import FireResetEnv
 from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage
 import argparse
@@ -38,11 +39,12 @@ def evaluate_agent(model_path, num_episodes=100, verbose=False):
         scale_obs=False,
         terminal_on_life_loss=False
     )
+    env = FireResetEnv(env)                     # auto-press FIRE on reset
     env = gym.wrappers.FrameStackObservation(env, 4)
     
     # Load the trained model
     print(f"Loading model from {model_path}")
-    model = PPO.load(model_path)
+    model = PPO.load(model_path, device="auto")
     
     # Track scores and episode lengths
     scores = []
@@ -59,8 +61,8 @@ def evaluate_agent(model_path, num_episodes=100, verbose=False):
         steps = 0
         
         while not done:
-            # Get action from the agent
-            action, _ = model.predict(obs, deterministic=True)
+            # Get action from the agent (sample so FIRE can be chosen)
+            action, _ = model.predict(obs, deterministic=False)
             
             # Execute action in environment
             obs, reward, terminated, truncated, info = env.step(action)
